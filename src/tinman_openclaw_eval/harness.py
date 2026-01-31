@@ -20,6 +20,7 @@ from .attacks import (
     SupplyChainAttacks,
 )
 from .synthetic_gateway import SyntheticGateway, GatewayConfig
+from .tinman_integration import TinmanAnalyzer, check_tinman_available
 
 
 @dataclass
@@ -36,6 +37,8 @@ class EvalResult:
     errors: int = 0
     results: list[AttackResult] = field(default_factory=list)
     config: dict[str, Any] = field(default_factory=dict)
+    traces: list[Any] = field(default_factory=list)  # Tinman Trace objects
+    tinman_enabled: bool = False
 
     @property
     def pass_rate(self) -> float:
@@ -126,13 +129,15 @@ class EvalHarness:
     Security evaluation harness for OpenClaw agents.
 
     Runs attack payloads against a Gateway (synthetic or real)
-    and collects results for analysis.
+    and collects results for analysis. Uses AgentTinman's FailureClassifier
+    for advanced analysis when available.
     """
 
     def __init__(
         self,
         gateway: SyntheticGateway | None = None,
         gateway_config: GatewayConfig | None = None,
+        use_tinman: bool = True,
     ):
         self.gateway = gateway or SyntheticGateway(gateway_config)
         self.attack_modules: list[Attack] = [
@@ -142,6 +147,9 @@ class EvalHarness:
             PrivilegeEscalationAttacks(),
             SupplyChainAttacks(),
         ]
+        # Initialize Tinman analyzer if requested and available
+        self.tinman_analyzer = TinmanAnalyzer() if use_tinman else None
+        self.tinman_enabled = use_tinman and check_tinman_available()
 
     def get_all_payloads(self) -> list[AttackPayload]:
         """Get all attack payloads from all modules."""
@@ -237,7 +245,9 @@ class EvalHarness:
                 "gateway_mode": self.gateway.config.mode.value,
                 "sandbox_enabled": self.gateway.config.sandbox_enabled,
                 "pairing_enabled": self.gateway.config.pairing_enabled,
+                "tinman_enabled": self.tinman_enabled,
             },
+            tinman_enabled=self.tinman_enabled,
         )
 
         # Create session for the run
@@ -287,6 +297,37 @@ class EvalHarness:
             if isinstance(ar, Exception):
                 result.errors += 1
             elif isinstance(ar, AttackResult):
+                # Run Tinman analysis if enabled
+                if self.tinman_enabled and self.tinman_analyzer:
+                    tinman_analysis = self.tinman_analyzer.analyze_response(
+                        attack_payload=ar.details.get("payload", ""),
+                        response_content=ar.response,
+                        response_metadata=ar.details,
+                        attack_category=ar.category.value,
+                    )
+                    # Enrich result with Tinman analysis
+                    ar.details["tinman_analysis"] = {
+                        "primary_class": tinman_analysis.primary_class,
+                        "secondary_class": tinman_analysis.secondary_class,
+                        "confidence": tinman_analysis.confidence,
+                        "severity": tinman_analysis.severity,
+                        "reasoning": tinman_analysis.reasoning,
+                        "indicators": tinman_analysis.indicators,
+                    }
+                    # Override vulnerability detection with Tinman's analysis
+                    if tinman_analysis.is_failure and not ar.is_vulnerability:
+                        ar.details["tinman_detected_failure"] = True
+
+                    # Generate Tinman trace
+                    trace = self.tinman_analyzer.convert_to_trace(
+                        attack_id=ar.attack_id,
+                        attack_payload=ar.details.get("payload", ""),
+                        response_content=ar.response,
+                        response_metadata=ar.details,
+                        latency_ms=ar.latency_ms,
+                    )
+                    result.traces.append(trace)
+
                 result.results.append(ar)
                 if ar.passed:
                     result.passed += 1
