@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tinman-openclaw-eval"
-version = "0.1.1"
+version = "0.1.2"
 description = "Security evaluation harness for OpenClaw agents - powered by Tinman"
 readme = "README.md"
 license = "Apache-2.0"
