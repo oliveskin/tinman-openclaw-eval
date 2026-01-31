@@ -1,0 +1,263 @@
+"""Report generation for evaluation results."""
+
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from .harness import EvalResult
+from .attacks import AttackCategory, Severity, ExpectedBehavior
+
+
+class ReportGenerator:
+    """Generate reports from evaluation results."""
+
+    def __init__(self, result: EvalResult):
+        self.result = result
+
+    def to_markdown(self) -> str:
+        """Generate markdown report."""
+        summary = self.result.summary()
+        lines = []
+
+        # Header
+        lines.append(f"# OpenClaw Security Evaluation Report")
+        lines.append(f"")
+        lines.append(f"**Run ID:** `{self.result.run_id}`")
+        lines.append(f"**Date:** {self.result.started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        if summary.get("duration_seconds"):
+            lines.append(f"**Duration:** {summary['duration_seconds']:.1f}s")
+        lines.append("")
+
+        # Summary table
+        lines.append("## Summary")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Total Attacks | {summary['total_attacks']} |")
+        lines.append(f"| Passed | {summary['passed']} |")
+        lines.append(f"| Failed | {summary['failed']} |")
+        lines.append(f"| **Vulnerabilities** | **{summary['vulnerabilities']}** |")
+        lines.append(f"| Errors | {summary['errors']} |")
+        lines.append(f"| Pass Rate | {summary['pass_rate']} |")
+        lines.append(f"| Vulnerability Rate | {summary['vulnerability_rate']} |")
+        lines.append("")
+
+        # Results by category
+        lines.append("## Results by Category")
+        lines.append("")
+        lines.append("| Category | Total | Passed | Failed | Vulnerabilities |")
+        lines.append("|----------|-------|--------|--------|-----------------|")
+        for cat, stats in summary.get("by_category", {}).items():
+            lines.append(
+                f"| {cat.replace('_', ' ').title()} | "
+                f"{stats['total']} | {stats['passed']} | "
+                f"{stats['failed']} | {stats['vulnerabilities']} |"
+            )
+        lines.append("")
+
+        # Results by severity
+        lines.append("## Results by Severity")
+        lines.append("")
+        lines.append("| Severity | Total | Passed | Failed | Vulnerabilities |")
+        lines.append("|----------|-------|--------|--------|-----------------|")
+        for sev in ["S4", "S3", "S2", "S1", "S0"]:
+            if sev in summary.get("by_severity", {}):
+                stats = summary["by_severity"][sev]
+                lines.append(
+                    f"| {sev} | {stats['total']} | {stats['passed']} | "
+                    f"{stats['failed']} | {stats['vulnerabilities']} |"
+                )
+        lines.append("")
+
+        # Vulnerabilities found
+        vulns = [r for r in self.result.results if r.is_vulnerability]
+        if vulns:
+            lines.append("## Vulnerabilities Found")
+            lines.append("")
+            for v in sorted(vulns, key=lambda x: x.severity.value, reverse=True):
+                lines.append(f"### [{v.severity.value}] {v.attack_name}")
+                lines.append("")
+                lines.append(f"**ID:** `{v.attack_id}`")
+                lines.append(f"**Category:** {v.category.value.replace('_', ' ').title()}")
+                lines.append(f"**Expected:** {v.expected.value}")
+                lines.append(f"**Actual:** {v.actual.value}")
+                if v.response:
+                    lines.append(f"**Response excerpt:** `{v.response[:200]}...`")
+                lines.append("")
+                lines.append("---")
+                lines.append("")
+
+        # Failed tests (non-vulnerability)
+        failed_non_vuln = [
+            r for r in self.result.results
+            if not r.passed and not r.is_vulnerability
+        ]
+        if failed_non_vuln:
+            lines.append("## Failed Tests")
+            lines.append("")
+            lines.append("| ID | Name | Expected | Actual | Error |")
+            lines.append("|----|------|----------|--------|-------|")
+            for f in failed_non_vuln[:20]:  # Limit to 20
+                error = (f.error or "")[:50]
+                lines.append(
+                    f"| `{f.attack_id}` | {f.attack_name} | "
+                    f"{f.expected.value} | {f.actual.value} | {error} |"
+                )
+            if len(failed_non_vuln) > 20:
+                lines.append(f"| ... | *{len(failed_non_vuln) - 20} more* | | | |")
+            lines.append("")
+
+        # Configuration
+        lines.append("## Configuration")
+        lines.append("")
+        lines.append("```json")
+        lines.append(json.dumps(self.result.config, indent=2))
+        lines.append("```")
+        lines.append("")
+
+        # Footer
+        lines.append("---")
+        lines.append("")
+        lines.append("*Generated by tinman-openclaw-eval*")
+
+        return "\n".join(lines)
+
+    def to_json(self) -> str:
+        """Generate JSON report."""
+        return self.result.to_json()
+
+    def to_sarif(self) -> str:
+        """Generate SARIF format for CI integration."""
+        sarif = {
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "tinman-openclaw-eval",
+                            "version": "0.1.0",
+                            "informationUri": "https://github.com/oliveskin/tinman-openclaw-eval",
+                            "rules": self._get_sarif_rules(),
+                        }
+                    },
+                    "results": self._get_sarif_results(),
+                }
+            ],
+        }
+        return json.dumps(sarif, indent=2)
+
+    def _get_sarif_rules(self) -> list[dict]:
+        """Generate SARIF rule definitions."""
+        rules = []
+        seen = set()
+
+        for r in self.result.results:
+            if r.attack_id in seen:
+                continue
+            seen.add(r.attack_id)
+
+            severity_map = {
+                "S0": "note",
+                "S1": "note",
+                "S2": "warning",
+                "S3": "error",
+                "S4": "error",
+            }
+
+            rules.append({
+                "id": r.attack_id,
+                "name": r.attack_name,
+                "shortDescription": {"text": r.attack_name},
+                "defaultConfiguration": {
+                    "level": severity_map.get(r.severity.value, "warning"),
+                },
+                "properties": {
+                    "category": r.category.value,
+                    "severity": r.severity.value,
+                },
+            })
+
+        return rules
+
+    def _get_sarif_results(self) -> list[dict]:
+        """Generate SARIF results for vulnerabilities."""
+        results = []
+
+        for r in self.result.results:
+            if not r.is_vulnerability:
+                continue
+
+            results.append({
+                "ruleId": r.attack_id,
+                "level": "error" if r.severity in [Severity.S3, Severity.S4] else "warning",
+                "message": {
+                    "text": f"Vulnerability found: {r.attack_name}. "
+                           f"Expected {r.expected.value} but got {r.actual.value}.",
+                },
+                "properties": {
+                    "category": r.category.value,
+                    "severity": r.severity.value,
+                    "latency_ms": r.latency_ms,
+                },
+            })
+
+        return results
+
+    def to_junit(self) -> str:
+        """Generate JUnit XML for CI integration."""
+        import xml.etree.ElementTree as ET
+
+        testsuite = ET.Element("testsuite")
+        testsuite.set("name", "tinman-openclaw-eval")
+        testsuite.set("tests", str(self.result.total_attacks))
+        testsuite.set("failures", str(self.result.failed))
+        testsuite.set("errors", str(self.result.errors))
+        testsuite.set("time", str(
+            (self.result.completed_at - self.result.started_at).total_seconds()
+            if self.result.completed_at else 0
+        ))
+
+        for r in self.result.results:
+            testcase = ET.SubElement(testsuite, "testcase")
+            testcase.set("name", r.attack_name)
+            testcase.set("classname", f"attacks.{r.category.value}")
+            testcase.set("time", str(r.latency_ms / 1000))
+
+            if not r.passed:
+                if r.is_vulnerability:
+                    failure = ET.SubElement(testcase, "failure")
+                    failure.set("type", "vulnerability")
+                    failure.set("message", f"Attack succeeded: {r.actual.value}")
+                    failure.text = r.response[:500] if r.response else ""
+                else:
+                    failure = ET.SubElement(testcase, "failure")
+                    failure.set("type", "unexpected_behavior")
+                    failure.set("message", f"Expected {r.expected.value}, got {r.actual.value}")
+
+            if r.error:
+                error = ET.SubElement(testcase, "error")
+                error.set("message", r.error)
+
+        return ET.tostring(testsuite, encoding="unicode")
+
+    def save(
+        self,
+        output_path: Path | str,
+        format: str = "markdown",
+    ) -> None:
+        """Save report to file."""
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if format == "markdown" or str(output_path).endswith(".md"):
+            output_path.write_text(self.to_markdown())
+        elif format == "json" or str(output_path).endswith(".json"):
+            output_path.write_text(self.to_json())
+        elif format == "sarif":
+            output_path.write_text(self.to_sarif())
+        elif format == "junit" or str(output_path).endswith(".xml"):
+            output_path.write_text(self.to_junit())
+        else:
+            output_path.write_text(self.to_markdown())

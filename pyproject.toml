@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tinman-openclaw-eval"
+version = "0.1.0"
+description = "Security evaluation harness for OpenClaw agents - powered by Tinman"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "oliveskin" }
+]
+keywords = ["security", "ai-safety", "openclaw", "tinman", "evaluation", "red-team"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "AgentTinman>=0.1.60",
+    "pyyaml>=6.0",
+    "websockets>=12.0",
+    "httpx>=0.27.0",
+    "rich>=13.0",
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+tinman-eval = "tinman_openclaw_eval.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/oliveskin/tinman-openclaw-eval"
+Repository = "https://github.com/oliveskin/tinman-openclaw-eval"
+Issues = "https://github.com/oliveskin/tinman-openclaw-eval/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tinman_openclaw_eval"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
