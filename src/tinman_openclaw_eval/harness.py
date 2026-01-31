@@ -18,6 +18,10 @@ from .attacks import (
     ContextBleedAttacks,
     PrivilegeEscalationAttacks,
     SupplyChainAttacks,
+    FinancialAttacks,
+    UnauthorizedActionAttacks,
+    MCPAttacks,
+    IndirectInjectionAttacks,
 )
 from .synthetic_gateway import SyntheticGateway, GatewayConfig
 from .tinman_integration import TinmanAnalyzer, check_tinman_available
@@ -146,6 +150,10 @@ class EvalHarness:
             ContextBleedAttacks(),
             PrivilegeEscalationAttacks(),
             SupplyChainAttacks(),
+            FinancialAttacks(),
+            UnauthorizedActionAttacks(),
+            MCPAttacks(),
+            IndirectInjectionAttacks(),
         ]
         # Initialize Tinman analyzer if requested and available
         self.tinman_analyzer = TinmanAnalyzer() if use_tinman else None

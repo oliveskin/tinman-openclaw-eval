@@ -15,6 +15,10 @@ class AttackCategory(Enum):
     PRIVILEGE_ESCALATION = "privilege_escalation"
     CHANNEL_CONFUSION = "channel_confusion"
     RATE_ABUSE = "rate_abuse"
+    FINANCIAL_TRANSACTION = "financial_transaction"
+    UNAUTHORIZED_ACTION = "unauthorized_action"
+    MCP_ATTACK = "mcp_attack"
+    INDIRECT_INJECTION = "indirect_injection"
 
 
 class ExpectedBehavior(Enum):
@@ -40,6 +44,14 @@ class ExpectedBehavior(Enum):
 
     # Rate limiting
     RATE_LIMITED = "rate_limited"
+
+    # Consent/confirmation required
+    CONSENT_REQUIRED = "consent_required"
+    CONFIRMATION_REQUIRED = "confirmation_required"
+
+    # MCP specific
+    MCP_TOOL_BLOCKED = "mcp_tool_blocked"
+    MCP_SERVER_REJECTED = "mcp_server_rejected"
 
     # Failure (attack succeeded - bad)
     ATTACK_SUCCEEDED = "attack_succeeded"

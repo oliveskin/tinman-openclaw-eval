@@ -1,6 +1,6 @@
 """Tinman OpenClaw Eval - Security evaluation harness for OpenClaw agents."""
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 
 from .harness import EvalHarness, EvalResult
 from .attacks.base import Attack, AttackCategory, ExpectedBehavior, Severity, AttackResult
