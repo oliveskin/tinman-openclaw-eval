@@ -4,21 +4,28 @@ Security evaluation harness for OpenClaw agents. Powered by [Tinman](https://git
 
 ## Features
 
-- **70+ attack payloads** across 5 categories
+- **270+ attack probes** across 13 categories
 - **Synthetic Gateway** for isolated testing
 - **CI integration** via SARIF, JUnit, and JSON outputs
 - **Baseline assertions** for regression testing
-- **Supply chain attack testing** for skill security
+- **Real-time monitoring** via Gateway WebSocket
 
 ## Attack Categories
 
-| Category | Attacks | Description |
-|----------|---------|-------------|
-| **Prompt Injection** | 15 | Jailbreaks, instruction override, prompt leaking |
-| **Tool Exfiltration** | 18 | SSH keys, credentials, network exfil |
+| Category | Probes | Description |
+|----------|--------|-------------|
+| **Prompt Injection** | 15 | Jailbreaks, DAN, instruction override, prompt leaking |
+| **Tool Exfiltration** | 42 | SSH keys, cloud creds, supply-chain tokens, crypto wallets |
 | **Context Bleed** | 14 | Cross-session leaks, memory extraction |
 | **Privilege Escalation** | 15 | Sandbox escape, elevation bypass |
 | **Supply Chain** | 18 | Malicious skills, dependency attacks |
+| **Financial** | 26 | Crypto wallets (BTC, ETH, SOL, Base), transactions, exchange APIs |
+| **Unauthorized Action** | 28 | Actions without consent, implicit execution |
+| **MCP Attacks** | 20 | MCP tool abuse, server injection, cross-MCP exfil |
+| **Indirect Injection** | 20 | Injection via files, URLs, documents, configs |
+| **Evasion Bypass** | 30 | Unicode bypass, URL/base64/hex encoding, shell injection |
+| **Memory Poisoning** | 25 | Context injection, RAG poisoning, history fabrication |
+| **Platform Specific** | 35 | Windows (mimikatz, schtasks, PowerShell), macOS (LaunchAgents), Linux (systemd), cloud metadata |
 
 ## Installation
 
@@ -42,6 +49,8 @@ tinman-eval run
 
 # Run specific category
 tinman-eval run -c prompt_injection
+tinman-eval run -c financial
+tinman-eval run -c evasion_bypass
 
 # Run only high severity (S3+)
 tinman-eval run -s S3
@@ -136,7 +145,7 @@ attacks:
 
 ```python
 import asyncio
-from tinman_openclaw_eval import EvalHarness, SyntheticGateway
+from tinman_openclaw_eval import EvalHarness, AttackCategory
 
 async def main():
     harness = EvalHarness()
@@ -147,9 +156,15 @@ async def main():
     # Check for vulnerabilities
     print(f"Vulnerabilities: {result.vulnerabilities}")
 
-    # Get specific category
-    payloads = harness.get_payloads_by_category("prompt_injection")
-    result = await harness.run(payloads=payloads)
+    # Run specific categories
+    result = await harness.run(categories=[
+        AttackCategory.PROMPT_INJECTION,
+        AttackCategory.FINANCIAL_TRANSACTION,
+        AttackCategory.EVASION_BYPASS,
+    ])
+
+    # Run high severity only
+    result = await harness.run(min_severity="S3")
 
 asyncio.run(main())
 ```
@@ -164,6 +179,23 @@ tinman-eval run --no-mock --gateway-url ws://127.0.0.1:18789
 tinman-eval run --no-mock --gateway-url ws://192.168.1.100:18789
 ```
 
+## Attack Probe IDs
+
+| Prefix | Category |
+|--------|----------|
+| `PI-*` | Prompt Injection |
+| `TE-*` | Tool Exfiltration |
+| `CB-*` | Context Bleed |
+| `PE-*` | Privilege Escalation |
+| `SC-*` | Supply Chain |
+| `FT-*` | Financial Transaction |
+| `UA-*` | Unauthorized Action |
+| `MCP-*` | MCP Attacks |
+| `II-*` | Indirect Injection |
+| `EB-*` | Evasion Bypass |
+| `MP-*` | Memory Poisoning |
+| `PS-*` | Platform Specific |
+
 ## Severity Levels
 
 | Level | Description | Action |
@@ -174,11 +206,22 @@ tinman-eval run --no-mock --gateway-url ws://192.168.1.100:18789
 | **S1** | Low | Monitor |
 | **S0** | Info | Observation only |
 
+## Integration with OpenClaw Skill
+
+For continuous monitoring in OpenClaw, use the [Tinman Skill](https://github.com/oliveskin/openclaw-skill-tinman):
+
+```bash
+# In OpenClaw
+/tinman sweep                    # Run security sweep
+/tinman sweep --category financial
+/tinman watch                    # Real-time monitoring
+```
+
 ## Links
 
 - [Tinman](https://github.com/oliveskin/Agent-Tinman) - AI Failure Mode Research
+- [Tinman Skill](https://github.com/oliveskin/openclaw-skill-tinman) - OpenClaw Integration
 - [OpenClaw](https://github.com/openclaw/openclaw) - Personal AI Assistant
-- [ClawHub](https://clawhub.ai) - Skill Registry
 
 ## License
 
