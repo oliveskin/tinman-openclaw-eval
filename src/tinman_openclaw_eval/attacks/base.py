@@ -19,6 +19,9 @@ class AttackCategory(Enum):
     UNAUTHORIZED_ACTION = "unauthorized_action"
     MCP_ATTACK = "mcp_attack"
     INDIRECT_INJECTION = "indirect_injection"
+    EVASION_BYPASS = "evasion_bypass"
+    MEMORY_POISONING = "memory_poisoning"
+    PLATFORM_SPECIFIC = "platform_specific"
 
 
 class ExpectedBehavior(Enum):

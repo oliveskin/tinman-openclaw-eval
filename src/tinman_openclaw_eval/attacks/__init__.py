@@ -10,6 +10,9 @@ from .financial import FinancialAttacks
 from .unauthorized_action import UnauthorizedActionAttacks
 from .mcp_attacks import MCPAttacks
 from .indirect_injection import IndirectInjectionAttacks
+from .evasion_bypass import EvasionBypassAttack
+from .memory_poisoning import MemoryPoisoningAttack
+from .platform_specific import PlatformSpecificAttack
 
 __all__ = [
     "Attack",
@@ -28,4 +31,7 @@ __all__ = [
     "UnauthorizedActionAttacks",
     "MCPAttacks",
     "IndirectInjectionAttacks",
+    "EvasionBypassAttack",
+    "MemoryPoisoningAttack",
+    "PlatformSpecificAttack",
 ]
