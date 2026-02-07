@@ -9,21 +9,25 @@ from typing import Any
 
 from .attacks import (
     Attack,
+    AttackCategory,
     AttackPayload,
     AttackResult,
-    AttackCategory,
-    Severity,
-    PromptInjectionAttacks,
-    ToolExfilAttacks,
     ContextBleedAttacks,
-    PrivilegeEscalationAttacks,
-    SupplyChainAttacks,
+    EvasionBypassAttack,
+    ExpectedBehavior,
     FinancialAttacks,
-    UnauthorizedActionAttacks,
-    MCPAttacks,
     IndirectInjectionAttacks,
+    MCPAttacks,
+    MemoryPoisoningAttack,
+    PlatformSpecificAttack,
+    PrivilegeEscalationAttacks,
+    PromptInjectionAttacks,
+    Severity,
+    SupplyChainAttacks,
+    ToolExfilAttacks,
+    UnauthorizedActionAttacks,
 )
-from .synthetic_gateway import SyntheticGateway, GatewayConfig
+from .synthetic_gateway import GatewayConfig, SyntheticGateway
 from .tinman_integration import TinmanAnalyzer, check_tinman_available
 
 
@@ -90,7 +94,9 @@ class EvalResult:
 
         return {
             "run_id": self.run_id,
-            "duration_seconds": (self.completed_at - self.started_at).total_seconds() if self.completed_at else None,
+            "duration_seconds": (self.completed_at - self.started_at).total_seconds()
+            if self.completed_at
+            else None,
             "total_attacks": self.total_attacks,
             "passed": self.passed,
             "failed": self.failed,
@@ -104,28 +110,31 @@ class EvalResult:
 
     def to_json(self) -> str:
         """Serialize to JSON."""
-        return json.dumps({
-            "run_id": self.run_id,
-            "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "summary": self.summary(),
-            "results": [
-                {
-                    "attack_id": r.attack_id,
-                    "attack_name": r.attack_name,
-                    "category": r.category.value,
-                    "severity": r.severity.value,
-                    "expected": r.expected.value,
-                    "actual": r.actual.value,
-                    "passed": r.passed,
-                    "is_vulnerability": r.is_vulnerability,
-                    "latency_ms": r.latency_ms,
-                    "error": r.error,
-                }
-                for r in self.results
-            ],
-            "config": self.config,
-        }, indent=2)
+        return json.dumps(
+            {
+                "run_id": self.run_id,
+                "started_at": self.started_at.isoformat(),
+                "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+                "summary": self.summary(),
+                "results": [
+                    {
+                        "attack_id": r.attack_id,
+                        "attack_name": r.attack_name,
+                        "category": r.category.value,
+                        "severity": r.severity.value,
+                        "expected": r.expected.value,
+                        "actual": r.actual.value,
+                        "passed": r.passed,
+                        "is_vulnerability": r.is_vulnerability,
+                        "latency_ms": r.latency_ms,
+                        "error": r.error,
+                    }
+                    for r in self.results
+                ],
+                "config": self.config,
+            },
+            indent=2,
+        )
 
 
 class EvalHarness:
@@ -154,10 +163,33 @@ class EvalHarness:
             UnauthorizedActionAttacks(),
             MCPAttacks(),
             IndirectInjectionAttacks(),
+            EvasionBypassAttack(),
+            MemoryPoisoningAttack(),
+            PlatformSpecificAttack(),
         ]
+        self._module_by_attack_id = self._build_payload_index(self.attack_modules)
         # Initialize Tinman analyzer if requested and available
         self.tinman_analyzer = TinmanAnalyzer() if use_tinman else None
         self.tinman_enabled = use_tinman and check_tinman_available()
+
+    @staticmethod
+    def _build_payload_index(modules: list[Attack]) -> dict[str, Attack]:
+        """Build a stable index from attack ID to attack module."""
+        payload_index: dict[str, Attack] = {}
+        for module in modules:
+            for payload in module.payloads:
+                if payload.id in payload_index:
+                    raise ValueError(f"Duplicate attack ID found: {payload.id}")
+                payload_index[payload.id] = module
+        return payload_index
+
+    def _create_session_for_payload(self, payload: AttackPayload) -> str:
+        """Create a session that matches payload targeting semantics."""
+        channel_type = (
+            payload.target if payload.target in {"dm_channel", "group_channel"} else "dm_channel"
+        )
+        elevated = payload.target == "elevated_session"
+        return self.gateway.create_session(channel_type=channel_type, elevated=elevated)
 
     def get_all_payloads(self) -> list[AttackPayload]:
         """Get all attack payloads from all modules."""
@@ -171,8 +203,7 @@ class EvalHarness:
         category: AttackCategory | str,
     ) -> list[AttackPayload]:
         """Get payloads filtered by category."""
-        if isinstance(category, str):
-            category = AttackCategory(category)
+        category = AttackCategory.parse(category)
 
         payloads = []
         for module in self.attack_modules:
@@ -227,10 +258,7 @@ class EvalHarness:
 
             # Apply category filter
             if categories:
-                cat_set = {
-                    AttackCategory(c) if isinstance(c, str) else c
-                    for c in categories
-                }
+                cat_set = {AttackCategory.parse(c) for c in categories}
                 payloads = [p for p in payloads if p.category in cat_set]
 
             # Apply severity filter
@@ -239,10 +267,7 @@ class EvalHarness:
                     min_severity = Severity(min_severity)
                 severity_order = [Severity.S0, Severity.S1, Severity.S2, Severity.S3, Severity.S4]
                 min_index = severity_order.index(min_severity)
-                payloads = [
-                    p for p in payloads
-                    if severity_order.index(p.severity) >= min_index
-                ]
+                payloads = [p for p in payloads if severity_order.index(p.severity) >= min_index]
 
         # Create result container
         result = EvalResult(
@@ -258,9 +283,6 @@ class EvalHarness:
             tinman_enabled=self.tinman_enabled,
         )
 
-        # Create session for the run
-        session_id = self.gateway.create_session()
-
         # Run attacks with concurrency limit
         semaphore = asyncio.Semaphore(max_concurrent)
         completed = 0
@@ -268,14 +290,8 @@ class EvalHarness:
         async def run_attack(payload: AttackPayload) -> AttackResult:
             nonlocal completed
             async with semaphore:
-                # Find the attack module for this payload
-                for module in self.attack_modules:
-                    if module.category == payload.category:
-                        attack_result = await module.execute(
-                            payload, self.gateway, session_id
-                        )
-                        break
-                else:
+                module = self._module_by_attack_id.get(payload.id)
+                if module is None:
                     # Fallback - shouldn't happen
                     attack_result = AttackResult(
                         attack_id=payload.id,
@@ -287,6 +303,9 @@ class EvalHarness:
                         passed=True,
                         error="No attack module found",
                     )
+                else:
+                    session_id = self._create_session_for_payload(payload)
+                    attack_result = await module.execute(payload, self.gateway, session_id)
 
                 completed += 1
                 if progress_callback:
@@ -325,6 +344,8 @@ class EvalHarness:
                     # Override vulnerability detection with Tinman's analysis
                     if tinman_analysis.is_failure and not ar.is_vulnerability:
                         ar.details["tinman_detected_failure"] = True
+                        ar.actual = ExpectedBehavior.ATTACK_SUCCEEDED
+                        ar.passed = ar.expected == ar.actual
 
                     # Generate Tinman trace
                     trace = self.tinman_analyzer.convert_to_trace(
@@ -357,12 +378,9 @@ class EvalHarness:
         """Run a single attack by ID."""
         # Find the payload
         payload = None
-        module = None
-        for m in self.attack_modules:
-            payload = m.get_payload_by_id(attack_id)
-            if payload:
-                module = m
-                break
+        module = self._module_by_attack_id.get(attack_id)
+        if module:
+            payload = module.get_payload_by_id(attack_id)
 
         if not payload or not module:
             raise ValueError(f"Attack not found: {attack_id}")

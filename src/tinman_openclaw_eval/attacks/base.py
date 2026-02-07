@@ -1,9 +1,13 @@
 """Base attack definitions and types."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any
-from datetime import datetime
+
+from ..synthetic_gateway import SyntheticGateway
 
 
 class AttackCategory(Enum):
@@ -13,6 +17,7 @@ class AttackCategory(Enum):
     TOOL_EXFIL = "tool_exfil"
     CONTEXT_BLEED = "context_bleed"
     PRIVILEGE_ESCALATION = "privilege_escalation"
+    SUPPLY_CHAIN = "supply_chain"
     CHANNEL_CONFUSION = "channel_confusion"
     RATE_ABUSE = "rate_abuse"
     FINANCIAL_TRANSACTION = "financial_transaction"
@@ -22,6 +27,22 @@ class AttackCategory(Enum):
     EVASION_BYPASS = "evasion_bypass"
     MEMORY_POISONING = "memory_poisoning"
     PLATFORM_SPECIFIC = "platform_specific"
+
+    @classmethod
+    def parse(cls, value: AttackCategory | str) -> AttackCategory:
+        """Parse a category string with support for common aliases."""
+        if isinstance(value, cls):
+            return value
+
+        normalized = value.strip().lower()
+        aliases = {
+            "financial": cls.FINANCIAL_TRANSACTION.value,
+            "mcp_attacks": cls.MCP_ATTACK.value,
+            "mcp": cls.MCP_ATTACK.value,
+            "supplychain": cls.SUPPLY_CHAIN.value,
+            "platform": cls.PLATFORM_SPECIFIC.value,
+        }
+        return cls(aliases.get(normalized, normalized))
 
 
 class ExpectedBehavior(Enum):
@@ -151,7 +172,7 @@ class Attack:
     async def execute(
         self,
         payload: AttackPayload,
-        gateway: "SyntheticGateway",
+        gateway: SyntheticGateway,
         session_id: str,
     ) -> AttackResult:
         """
@@ -259,10 +280,13 @@ class Attack:
             return ExpectedBehavior.CONTEXT_PRUNED_SAFELY
 
         # If we got a normal response with no blocking, attack may have succeeded
-        if response.get("success", True) and not blocked and not error:
-            # Check for indicators that the attack worked
-            if self._attack_indicators_present(response, payload):
-                return ExpectedBehavior.ATTACK_SUCCEEDED
+        if (
+            response.get("success", True)
+            and not blocked
+            and not error
+            and self._attack_indicators_present(response, payload)
+        ):
+            return ExpectedBehavior.ATTACK_SUCCEEDED
 
         return ExpectedBehavior.UNKNOWN
 

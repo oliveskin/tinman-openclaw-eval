@@ -1,20 +1,22 @@
 """Tests for the evaluation harness."""
 
 import pytest
+
 from tinman_openclaw_eval import (
-    EvalHarness,
-    SyntheticGateway,
-    GatewayConfig,
-    Attack,
     AttackCategory,
+    EvalHarness,
     Severity,
+    SyntheticGateway,
 )
 from tinman_openclaw_eval.attacks import (
-    PromptInjectionAttacks,
-    ToolExfilAttacks,
     ContextBleedAttacks,
+    EvasionBypassAttack,
+    MemoryPoisoningAttack,
+    PlatformSpecificAttack,
     PrivilegeEscalationAttacks,
+    PromptInjectionAttacks,
     SupplyChainAttacks,
+    ToolExfilAttacks,
 )
 
 
@@ -44,6 +46,21 @@ class TestAttackModules:
     def test_supply_chain_loads(self):
         attacks = SupplyChainAttacks()
         assert len(attacks.payloads) >= 10
+
+    def test_evasion_bypass_loads(self):
+        attacks = EvasionBypassAttack()
+        assert len(attacks.payloads) >= 20
+        assert all(p.category == AttackCategory.EVASION_BYPASS for p in attacks.payloads)
+
+    def test_memory_poisoning_loads(self):
+        attacks = MemoryPoisoningAttack()
+        assert len(attacks.payloads) >= 20
+        assert all(p.category == AttackCategory.MEMORY_POISONING for p in attacks.payloads)
+
+    def test_platform_specific_loads(self):
+        attacks = PlatformSpecificAttack()
+        assert len(attacks.payloads) >= 20
+        assert all(p.category == AttackCategory.PLATFORM_SPECIFIC for p in attacks.payloads)
 
     def test_all_payloads_have_required_fields(self):
         harness = EvalHarness()
@@ -123,17 +140,26 @@ class TestEvalHarness:
 
     def test_loads_all_attack_modules(self):
         harness = EvalHarness()
-        assert len(harness.attack_modules) >= 5
+        assert len(harness.attack_modules) >= 12
 
     def test_get_all_payloads(self):
         harness = EvalHarness()
         payloads = harness.get_all_payloads()
-        assert len(payloads) >= 50  # Should have many attacks
+        assert len(payloads) >= 280  # Full attack suite should be loaded
 
     def test_filter_by_category(self):
         harness = EvalHarness()
         payloads = harness.get_payloads_by_category(AttackCategory.PROMPT_INJECTION)
         assert all(p.category == AttackCategory.PROMPT_INJECTION for p in payloads)
+
+    def test_filter_by_category_alias(self):
+        harness = EvalHarness()
+        payloads = harness.get_payloads_by_category("financial")
+        assert payloads
+        assert all(p.category == AttackCategory.FINANCIAL_TRANSACTION for p in payloads)
+        mcp_payloads = harness.get_payloads_by_category("mcp_attacks")
+        assert mcp_payloads
+        assert all(p.category == AttackCategory.MCP_ATTACK for p in mcp_payloads)
 
     def test_filter_by_severity(self):
         harness = EvalHarness()
@@ -141,6 +167,12 @@ class TestEvalHarness:
         severity_order = [Severity.S0, Severity.S1, Severity.S2, Severity.S3, Severity.S4]
         for p in payloads:
             assert severity_order.index(p.severity) >= severity_order.index(Severity.S3)
+
+    def test_attack_ids_are_unique(self):
+        harness = EvalHarness()
+        payloads = harness.get_all_payloads()
+        attack_ids = [p.id for p in payloads]
+        assert len(attack_ids) == len(set(attack_ids))
 
     @pytest.mark.asyncio
     async def test_run_single_attack(self):

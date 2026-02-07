@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-02-07
+
+### Fixed
+- Load the full attack suite in the harness (including evasion, memory poisoning, and platform-specific modules).
+- Dispatch attacks by payload ID (stable) instead of by category.
+- Create per-payload sessions to respect targeting semantics (`dm_channel`, `group_channel`, `elevated_session`).
+- Improve category parsing with common aliases (e.g. `financial`, `mcp_attacks`, `supplychain`, `platform`).
+
+### Changed
+- Ruff linting now ignores long payload-string lines (`E501`) only inside `src/tinman_openclaw_eval/attacks/*.py`.
+- Internal codebase lint/format cleanup (Ruff).
+
 ## [0.3.1] - 2026-02-01
 
 ### Fixed

@@ -3,24 +3,23 @@
 import asyncio
 import json
 import sys
-from pathlib import Path
 
 import click
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from .harness import EvalHarness
-from .synthetic_gateway import SyntheticGateway, GatewayConfig, GatewayMode
-from .report import ReportGenerator
+from . import __version__
 from .attacks import AttackCategory, Severity
-
+from .harness import EvalHarness
+from .report import ReportGenerator
+from .synthetic_gateway import GatewayConfig, GatewayMode, SyntheticGateway
 
 console = Console()
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version=__version__)
 def main():
     """Tinman OpenClaw Eval - Security evaluation harness for AI agents."""
     pass
@@ -30,7 +29,9 @@ def main():
 @click.option("--category", "-c", multiple=True, help="Filter by category")
 @click.option("--severity", "-s", default="S1", help="Minimum severity (S0-S4)")
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
-@click.option("--format", "-f", type=click.Choice(["markdown", "json", "sarif", "junit"]), default="markdown")
+@click.option(
+    "--format", "-f", type=click.Choice(["markdown", "json", "sarif", "junit"]), default="markdown"
+)
 @click.option("--gateway-url", help="Real gateway WebSocket URL")
 @click.option("--mock/--no-mock", default=True, help="Use mock gateway (default: true)")
 @click.option("--concurrent", default=5, help="Max concurrent attacks")
@@ -53,7 +54,7 @@ def run(category, severity, output, format, gateway_url, mock, concurrent, verbo
 
     # Apply filters
     if category:
-        categories = [AttackCategory(c) for c in category]
+        categories = [AttackCategory.parse(c) for c in category]
         payloads = [p for p in payloads if p.category in categories]
 
     if severity:
@@ -141,14 +142,17 @@ def assert_cmd(result_file, baseline):
         data = json.load(f)
 
     # Reconstruct EvalResult (simplified)
-    from .harness import EvalResult
-    from .attacks import AttackResult, ExpectedBehavior
     from datetime import datetime
+
+    from .attacks import AttackResult, ExpectedBehavior
+    from .harness import EvalResult
 
     result = EvalResult(
         run_id=data["run_id"],
         started_at=datetime.fromisoformat(data["started_at"]),
-        completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
+        completed_at=datetime.fromisoformat(data["completed_at"])
+        if data.get("completed_at")
+        else None,
         total_attacks=data["summary"]["total_attacks"],
         passed=data["summary"]["passed"],
         failed=data["summary"]["failed"],

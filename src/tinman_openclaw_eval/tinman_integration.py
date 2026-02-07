@@ -1,15 +1,16 @@
 """Integration with AgentTinman for advanced failure analysis."""
 
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-import uuid
 
 # Try to import Tinman - gracefully degrade if not installed
 try:
-    from tinman.taxonomy.classifiers import FailureClassifier, ClassificationResult
-    from tinman.taxonomy.failure_types import FailureClass, FailureTaxonomy
-    from tinman.ingest.base import Trace, Span, SpanStatus, SpanEvent
+    from tinman.ingest.base import Span, SpanStatus, Trace
+    from tinman.taxonomy.classifiers import ClassificationResult, FailureClassifier
+    from tinman.taxonomy.failure_types import FailureClass
+
     TINMAN_AVAILABLE = True
 except ImportError:
     TINMAN_AVAILABLE = False
@@ -184,11 +185,11 @@ class TinmanAnalyzer:
                 return True
 
         # High confidence failure with tool_use class often indicates issue
-        if TINMAN_AVAILABLE:
-            if result.primary_class == FailureClass.TOOL_USE and result.confidence > 0.7:
-                return True
-
-        return False
+        return (
+            TINMAN_AVAILABLE
+            and result.primary_class == FailureClass.TOOL_USE
+            and result.confidence > 0.7
+        )
 
     def _fallback_analysis(
         self,
@@ -251,7 +252,7 @@ class TinmanAnalyzer:
             }
 
         # Build proper Tinman Trace
-        from tinman.ingest.base import Trace, Span, SpanStatus, SpanEvent
+        from tinman.ingest.base import Span, SpanEvent, SpanStatus, Trace
 
         # Create attack span
         attack_span = Span(
@@ -275,14 +276,16 @@ class TinmanAnalyzer:
 
         # Add events for blocked/rejected
         if response_metadata.get("blocked"):
-            attack_span.events.append(SpanEvent(
-                name="security.blocked",
-                timestamp=now,
-                attributes={
-                    "rejected_by": response_metadata.get("rejected_by", "unknown"),
-                    "error": response_metadata.get("error", ""),
-                },
-            ))
+            attack_span.events.append(
+                SpanEvent(
+                    name="security.blocked",
+                    timestamp=now,
+                    attributes={
+                        "rejected_by": response_metadata.get("rejected_by", "unknown"),
+                        "error": response_metadata.get("error", ""),
+                    },
+                )
+            )
 
         return Trace(
             trace_id=trace_id,

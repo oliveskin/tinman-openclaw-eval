@@ -4,7 +4,7 @@ Security evaluation harness for OpenClaw agents. Powered by [Tinman](https://git
 
 ## Features
 
-- **270+ attack probes** across 13 categories
+- **280+ attack probes** (currently 288) across 12 categories
 - **Synthetic Gateway** for isolated testing
 - **CI integration** via SARIF, JUnit, and JSON outputs
 - **Baseline assertions** for regression testing
@@ -12,20 +12,22 @@ Security evaluation harness for OpenClaw agents. Powered by [Tinman](https://git
 
 ## Attack Categories
 
-| Category | Probes | Description |
-|----------|--------|-------------|
-| **Prompt Injection** | 15 | Jailbreaks, DAN, instruction override, prompt leaking |
-| **Tool Exfiltration** | 42 | SSH keys, cloud creds, supply-chain tokens, crypto wallets |
-| **Context Bleed** | 14 | Cross-session leaks, memory extraction |
-| **Privilege Escalation** | 15 | Sandbox escape, elevation bypass |
-| **Supply Chain** | 18 | Malicious skills, dependency attacks |
-| **Financial** | 26 | Crypto wallets (BTC, ETH, SOL, Base), transactions, exchange APIs |
-| **Unauthorized Action** | 28 | Actions without consent, implicit execution |
-| **MCP Attacks** | 20 | MCP tool abuse, server injection, cross-MCP exfil |
-| **Indirect Injection** | 20 | Injection via files, URLs, documents, configs |
-| **Evasion Bypass** | 30 | Unicode bypass, URL/base64/hex encoding, shell injection |
-| **Memory Poisoning** | 25 | Context injection, RAG poisoning, history fabrication |
-| **Platform Specific** | 35 | Windows (mimikatz, schtasks, PowerShell), macOS (LaunchAgents), Linux (systemd), cloud metadata |
+Run `tinman-eval list-attacks` to see exact counts by category.
+
+| Category | Description |
+|----------|-------------|
+| **Prompt Injection** | Jailbreaks, instruction override, prompt leaking |
+| **Tool Exfiltration** | Sensitive file/secret exfiltration attempts |
+| **Context Bleed** | Cross-session leaks, conversation history extraction |
+| **Privilege Escalation** | Sandbox escape, elevation bypass attempts |
+| **Supply Chain** | Malicious skills, dependency and update attacks |
+| **Financial Transaction** | Wallet/seed phrase theft, transaction/approval attempts |
+| **Unauthorized Action** | Actions without consent/confirmation |
+| **MCP Attacks** | MCP tool abuse, server injection, cross-tool exfil |
+| **Indirect Injection** | Injection via documents, URLs, issues, logs, metadata |
+| **Evasion Bypass** | Unicode/encoding bypass, obfuscation, injection variants |
+| **Memory Poisoning** | Persistent instruction poisoning, fabricated history |
+| **Platform Specific** | OS and cloud-specific payloads (Windows/macOS/Linux/metadata) |
 
 ## Installation
 
@@ -65,6 +67,8 @@ tinman-eval list-attacks
 tinman-eval run-single PI-001 -v
 ```
 
+Category aliases are supported (e.g. `financial`, `mcp_attacks`, `supplychain`, `platform`).
+
 ## CI Integration
 
 ### GitHub Actions
@@ -92,7 +96,7 @@ jobs:
 
       - name: Assert baseline
         run: |
-          tinman-eval assert \
+          tinman-eval assert-cmd \
             security-report.json \
             --baseline expected/baseline.json
 
@@ -100,6 +104,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: security-report.sarif
+        if: always()
+
+      - name: Generate SARIF (always)
+        run: |
+          tinman-eval run \
+            --output security-report.sarif \
+            --format sarif
         if: always()
 ```
 
@@ -110,7 +121,7 @@ jobs:
 tinman-eval baseline --output expected/baseline.json
 
 # Update after intentional changes
-tinman-eval run -o new-results.json
+tinman-eval run -f json -o new-results.json
 # Review and approve
 mv new-results.json expected/baseline.json
 ```
@@ -126,20 +137,32 @@ mv new-results.json expected/baseline.json
 
 ## Custom Attacks
 
-Add YAML files to `attacks/` directory:
+Add a new attack module under `src/tinman_openclaw_eval/attacks/`:
 
-```yaml
-# attacks/custom.yaml
-attacks:
-  - id: CUSTOM-001
-    name: "My custom attack"
-    severity: S2
-    payload: "Custom attack payload..."
-    target: dm_channel
-    expected_behavior: rejected_by_soul
-    tags:
-      - custom
+```python
+from tinman_openclaw_eval.attacks.base import Attack, AttackCategory, AttackPayload, ExpectedBehavior, Severity
+
+
+class MyAttacks(Attack):
+    category = AttackCategory.PROMPT_INJECTION
+    name = "My Attacks"
+
+    def _load_payloads(self) -> None:
+        self.payloads.append(
+            AttackPayload(
+                id="MY-001",
+                name="My probe",
+                category=self.category,
+                severity=Severity.S2,
+                payload="...",
+                target="dm_channel",
+                expected_behavior=ExpectedBehavior.REJECTED_BY_SOUL,
+            )
+        )
 ```
+
+Then export it from `src/tinman_openclaw_eval/attacks/__init__.py` and register it in
+`src/tinman_openclaw_eval/harness.py`.
 
 ## Programmatic Usage
 

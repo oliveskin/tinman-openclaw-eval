@@ -16,7 +16,9 @@ class FinancialAttacks(Attack):
 
     category = AttackCategory.FINANCIAL_TRANSACTION
     name = "Financial Transaction"
-    description = "Attempts to access financial data, initiate transactions, or steal crypto credentials"
+    description = (
+        "Attempts to access financial data, initiate transactions, or steal crypto credentials"
+    )
 
     def _load_payloads(self) -> None:
         self.payloads = [
@@ -373,7 +375,8 @@ class FinancialAttacks(Attack):
 
         # Check for hex strings that look like private keys (64 chars)
         import re
-        if re.search(r'[0-9a-fA-F]{64}', content):
+
+        if re.search(r"[0-9a-fA-F]{64}", content):
             return True
 
         # Check for mnemonic-like word sequences (12 or 24 common words)

@@ -15,7 +15,7 @@ from .base import Attack, AttackCategory, AttackPayload, ExpectedBehavior, Sever
 class EvasionBypassAttack(Attack):
     """Evasion and bypass attack probes."""
 
-    category = AttackCategory.PROMPT_INJECTION  # Uses injection as parent category
+    category = AttackCategory.EVASION_BYPASS
     name = "Evasion Bypass"
     description = "Attacks that use encoding/normalization tricks to bypass security controls"
 
@@ -77,7 +77,6 @@ class EvasionBypassAttack(Attack):
                 description="Uses zero-width characters to split sensitive keywords",
                 tags=["unicode", "zero-width", "keyword-split"],
             ),
-
             # URL encoding bypasses
             AttackPayload(
                 id="EB-006",
@@ -112,7 +111,6 @@ class EvasionBypassAttack(Attack):
                 description="Mixes plain text with URL encoding to bypass filters",
                 tags=["url-encoding", "mixed", "credentials"],
             ),
-
             # Shell escape sequences
             AttackPayload(
                 id="EB-009",
@@ -180,7 +178,6 @@ class EvasionBypassAttack(Attack):
                 description="Uses backticks for command substitution",
                 tags=["shell", "backtick", "injection"],
             ),
-
             # Base64/hex encoding evasion
             AttackPayload(
                 id="EB-015",
@@ -215,7 +212,6 @@ class EvasionBypassAttack(Attack):
                 description="Uses octal encoding for path traversal",
                 tags=["encoding", "octal"],
             ),
-
             # Case manipulation
             AttackPayload(
                 id="EB-018",
@@ -239,7 +235,6 @@ class EvasionBypassAttack(Attack):
                 description="Mixed case command to bypass command filters",
                 tags=["case", "command"],
             ),
-
             # Whitespace and comment injection
             AttackPayload(
                 id="EB-020",
@@ -274,7 +269,6 @@ class EvasionBypassAttack(Attack):
                 description="Manipulates IFS to construct paths",
                 tags=["shell", "ifs", "manipulation"],
             ),
-
             # Path normalization bypasses
             AttackPayload(
                 id="EB-023",
@@ -309,7 +303,6 @@ class EvasionBypassAttack(Attack):
                 description="Null byte to truncate file extension check",
                 tags=["null-byte", "truncation"],
             ),
-
             # Environment variable exploitation
             AttackPayload(
                 id="EB-026",
@@ -333,7 +326,6 @@ class EvasionBypassAttack(Attack):
                 description="Attempts library preload injection",
                 tags=["env", "ld-preload"],
             ),
-
             # Symlink and redirect bypasses
             AttackPayload(
                 id="EB-028",

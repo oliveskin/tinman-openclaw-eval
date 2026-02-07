@@ -1,12 +1,10 @@
 """Report generation for evaluation results."""
 
 import json
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 
+from .attacks import Severity
 from .harness import EvalResult
-from .attacks import AttackCategory, Severity, ExpectedBehavior
 
 
 class ReportGenerator:
@@ -21,8 +19,8 @@ class ReportGenerator:
         lines = []
 
         # Header
-        lines.append(f"# OpenClaw Security Evaluation Report")
-        lines.append(f"")
+        lines.append("# OpenClaw Security Evaluation Report")
+        lines.append("")
         lines.append(f"**Run ID:** `{self.result.run_id}`")
         lines.append(f"**Date:** {self.result.started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         if summary.get("duration_seconds"):
@@ -90,8 +88,7 @@ class ReportGenerator:
 
         # Failed tests (non-vulnerability)
         failed_non_vuln = [
-            r for r in self.result.results
-            if not r.passed and not r.is_vulnerability
+            r for r in self.result.results if not r.passed and not r.is_vulnerability
         ]
         if failed_non_vuln:
             lines.append("## Failed Tests")
@@ -166,18 +163,20 @@ class ReportGenerator:
                 "S4": "error",
             }
 
-            rules.append({
-                "id": r.attack_id,
-                "name": r.attack_name,
-                "shortDescription": {"text": r.attack_name},
-                "defaultConfiguration": {
-                    "level": severity_map.get(r.severity.value, "warning"),
-                },
-                "properties": {
-                    "category": r.category.value,
-                    "severity": r.severity.value,
-                },
-            })
+            rules.append(
+                {
+                    "id": r.attack_id,
+                    "name": r.attack_name,
+                    "shortDescription": {"text": r.attack_name},
+                    "defaultConfiguration": {
+                        "level": severity_map.get(r.severity.value, "warning"),
+                    },
+                    "properties": {
+                        "category": r.category.value,
+                        "severity": r.severity.value,
+                    },
+                }
+            )
 
         return rules
 
@@ -189,19 +188,21 @@ class ReportGenerator:
             if not r.is_vulnerability:
                 continue
 
-            results.append({
-                "ruleId": r.attack_id,
-                "level": "error" if r.severity in [Severity.S3, Severity.S4] else "warning",
-                "message": {
-                    "text": f"Vulnerability found: {r.attack_name}. "
-                           f"Expected {r.expected.value} but got {r.actual.value}.",
-                },
-                "properties": {
-                    "category": r.category.value,
-                    "severity": r.severity.value,
-                    "latency_ms": r.latency_ms,
-                },
-            })
+            results.append(
+                {
+                    "ruleId": r.attack_id,
+                    "level": "error" if r.severity in [Severity.S3, Severity.S4] else "warning",
+                    "message": {
+                        "text": f"Vulnerability found: {r.attack_name}. "
+                        f"Expected {r.expected.value} but got {r.actual.value}.",
+                    },
+                    "properties": {
+                        "category": r.category.value,
+                        "severity": r.severity.value,
+                        "latency_ms": r.latency_ms,
+                    },
+                }
+            )
 
         return results
 
@@ -214,10 +215,14 @@ class ReportGenerator:
         testsuite.set("tests", str(self.result.total_attacks))
         testsuite.set("failures", str(self.result.failed))
         testsuite.set("errors", str(self.result.errors))
-        testsuite.set("time", str(
-            (self.result.completed_at - self.result.started_at).total_seconds()
-            if self.result.completed_at else 0
-        ))
+        testsuite.set(
+            "time",
+            str(
+                (self.result.completed_at - self.result.started_at).total_seconds()
+                if self.result.completed_at
+                else 0
+            ),
+        )
 
         for r in self.result.results:
             testcase = ET.SubElement(testsuite, "testcase")

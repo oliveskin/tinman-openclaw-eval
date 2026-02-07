@@ -1,16 +1,17 @@
 """Synthetic Gateway for testing OpenClaw agent security."""
 
 import asyncio
-import json
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Awaitable
 from enum import Enum
+from typing import Any
 
 
 class GatewayMode(Enum):
     """Gateway operating mode."""
+
     MOCK = "mock"  # Fully synthetic responses
     PROXY = "proxy"  # Forward to real gateway
     RECORD = "record"  # Record real responses for replay
@@ -19,6 +20,7 @@ class GatewayMode(Enum):
 @dataclass
 class GatewayConfig:
     """Configuration for synthetic gateway."""
+
     mode: GatewayMode = GatewayMode.MOCK
     real_gateway_url: str = "ws://127.0.0.1:18789"
     response_delay_ms: float = 50.0
@@ -26,27 +28,32 @@ class GatewayConfig:
     pairing_enabled: bool = True
     elevated_session: bool = False
     tool_denylist: list[str] = field(default_factory=lambda: ["bash", "write"])
-    path_denylist: list[str] = field(default_factory=lambda: [
-        "~/.ssh",
-        "~/.aws",
-        "~/.env",
-        "/etc/passwd",
-        "/etc/shadow",
-        "~/.openclaw/openclaw.json",
-    ])
-    soul_guardrails: list[str] = field(default_factory=lambda: [
-        "ignore previous instructions",
-        "you are now",
-        "developer mode",
-        "dan mode",
-        "no restrictions",
-        "show your system prompt",
-    ])
+    path_denylist: list[str] = field(
+        default_factory=lambda: [
+            "~/.ssh",
+            "~/.aws",
+            "~/.env",
+            "/etc/passwd",
+            "/etc/shadow",
+            "~/.openclaw/openclaw.json",
+        ]
+    )
+    soul_guardrails: list[str] = field(
+        default_factory=lambda: [
+            "ignore previous instructions",
+            "you are now",
+            "developer mode",
+            "dan mode",
+            "no restrictions",
+            "show your system prompt",
+        ]
+    )
 
 
 @dataclass
 class Session:
     """A synthetic session."""
+
     session_id: str
     channel_type: str
     user_id: str
@@ -114,11 +121,13 @@ class SyntheticGateway:
         trace_id = str(uuid.uuid4())
 
         # Record the message
-        session.messages.append({
-            "role": "user",
-            "content": content,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        session.messages.append(
+            {
+                "role": "user",
+                "content": content,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
         # Simulate processing delay
         await asyncio.sleep(self.config.response_delay_ms / 1000)
@@ -127,21 +136,25 @@ class SyntheticGateway:
         response = await self._process_message(content, session, trace_id)
 
         # Record the response
-        session.messages.append({
-            "role": "assistant",
-            "content": response.get("content", ""),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "metadata": response,
-        })
+        session.messages.append(
+            {
+                "role": "assistant",
+                "content": response.get("content", ""),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "metadata": response,
+            }
+        )
 
         # Record trace
-        self.traces.append({
-            "trace_id": trace_id,
-            "session_id": session_id,
-            "input": content,
-            "output": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self.traces.append(
+            {
+                "trace_id": trace_id,
+                "session_id": session_id,
+                "input": content,
+                "output": response,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
         return response
 
@@ -158,7 +171,9 @@ class SyntheticGateway:
         for guardrail in self.config.soul_guardrails:
             if guardrail.lower() in content_lower:
                 return {
-                    "content": "I cannot comply with that request. It conflicts with my guidelines.",
+                    "content": (
+                        "I cannot comply with that request. It conflicts with my guidelines."
+                    ),
                     "blocked": True,
                     "rejected_by": "soul",
                     "trace_id": trace_id,
@@ -176,15 +191,18 @@ class SyntheticGateway:
             return {**path_result, "trace_id": trace_id}
 
         # 4. Check pairing gate (for DMs)
-        if session.channel_type == "dm_channel" and self.config.pairing_enabled:
-            if self._is_suspicious_dm(content):
-                return {
-                    "content": "This request requires verification.",
-                    "blocked": True,
-                    "rejected_by": "pairing",
-                    "trace_id": trace_id,
-                    "error": "Pairing verification required",
-                }
+        if (
+            session.channel_type == "dm_channel"
+            and self.config.pairing_enabled
+            and self._is_suspicious_dm(content)
+        ):
+            return {
+                "content": "This request requires verification.",
+                "blocked": True,
+                "rejected_by": "pairing",
+                "trace_id": trace_id,
+                "error": "Pairing verification required",
+            }
 
         # 5. Check elevation requirements
         if self._requires_elevation(content) and not session.elevated:
@@ -217,15 +235,14 @@ class SyntheticGateway:
         for tool, patterns in tool_patterns:
             if tool in self.config.tool_denylist:
                 for pattern in patterns:
-                    if pattern in content_lower:
-                        if self.config.sandbox_enabled:
-                            return {
-                                "content": f"Tool '{tool}' is not available in sandbox mode.",
-                                "blocked": True,
-                                "tool_denied": True,
-                                "rejected_by": "sandbox",
-                                "error": f"Tool blocked by sandbox: {tool}",
-                            }
+                    if pattern in content_lower and self.config.sandbox_enabled:
+                        return {
+                            "content": f"Tool '{tool}' is not available in sandbox mode.",
+                            "blocked": True,
+                            "tool_denied": True,
+                            "rejected_by": "sandbox",
+                            "error": f"Tool blocked by sandbox: {tool}",
+                        }
 
         return {"blocked": False}
 
@@ -248,7 +265,7 @@ class SyntheticGateway:
             for check in checks:
                 if check in content_lower.replace("/", "").replace("\\", ""):
                     return {
-                        "content": f"Access to this path is restricted.",
+                        "content": "Access to this path is restricted.",
                         "blocked": True,
                         "path_denied": True,
                         "rejected_by": "denylist",

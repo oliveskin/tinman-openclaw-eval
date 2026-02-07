@@ -260,9 +260,7 @@ class MCPAttacks(Attack):
         tool_calls = response.get("tool_calls", [])
 
         # Check if MCP tools were actually called
-        mcp_tool_used = any(
-            tc.get("name", "").startswith("mcp_") for tc in tool_calls
-        )
+        mcp_tool_used = any(tc.get("name", "").startswith("mcp_") for tc in tool_calls)
 
         # Indicators of successful MCP abuse
         success_indicators = [

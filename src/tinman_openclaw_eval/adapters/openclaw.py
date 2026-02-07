@@ -20,10 +20,10 @@ Event types from OpenClaw:
 - approval.resolved: Human approval granted/denied
 """
 
-import asyncio
 import json
+from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Any, AsyncIterator
+from typing import Any
 
 try:
     import websockets
@@ -96,9 +96,7 @@ class OpenClawAdapter(GatewayAdapter):
             **config: Additional configuration
         """
         if not WEBSOCKETS_AVAILABLE:
-            raise ImportError(
-                "websockets package required: pip install websockets"
-            )
+            raise ImportError("websockets package required: pip install websockets")
 
         super().__init__(url, **config)
         self.reconnect_delay = reconnect_delay
@@ -168,7 +166,7 @@ class OpenClawAdapter(GatewayAdapter):
         except websockets.ConnectionClosed:
             self._state.connected = False
             self._state.reconnect_count += 1
-            raise ConnectionError("WebSocket connection closed")
+            raise ConnectionError("WebSocket connection closed") from None
 
         except Exception as e:
             self._state.connected = False
@@ -281,11 +279,7 @@ class OpenClawAdapter(GatewayAdapter):
             else:
                 event.message_role = event.message_role or "assistant"
 
-            event.message_content = (
-                data.get("content")
-                or data.get("text")
-                or data.get("message")
-            )
+            event.message_content = data.get("content") or data.get("text") or data.get("message")
 
     def _populate_error_fields(
         self,
@@ -297,9 +291,7 @@ class OpenClawAdapter(GatewayAdapter):
         if event_type == EventType.LLM_ERROR or data.get("error"):
             event.error_type = data.get("error_type") or data.get("type")
             event.error_message = (
-                data.get("error_message")
-                or data.get("error")
-                or data.get("message")
+                data.get("error_message") or data.get("error") or data.get("message")
             )
 
         if event_type == EventType.TOOL_BLOCKED:

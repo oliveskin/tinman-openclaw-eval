@@ -1,18 +1,18 @@
 """Attack modules for OpenClaw security evaluation."""
 
-from .base import Attack, AttackCategory, ExpectedBehavior, AttackPayload, Severity, AttackResult
-from .prompt_injection import PromptInjectionAttacks
-from .tool_exfil import ToolExfilAttacks
+from .base import Attack, AttackCategory, AttackPayload, AttackResult, ExpectedBehavior, Severity
 from .context_bleed import ContextBleedAttacks
-from .privilege_escalation import PrivilegeEscalationAttacks
-from .supply_chain import SupplyChainAttacks
-from .financial import FinancialAttacks
-from .unauthorized_action import UnauthorizedActionAttacks
-from .mcp_attacks import MCPAttacks
-from .indirect_injection import IndirectInjectionAttacks
 from .evasion_bypass import EvasionBypassAttack
+from .financial import FinancialAttacks
+from .indirect_injection import IndirectInjectionAttacks
+from .mcp_attacks import MCPAttacks
 from .memory_poisoning import MemoryPoisoningAttack
 from .platform_specific import PlatformSpecificAttack
+from .privilege_escalation import PrivilegeEscalationAttacks
+from .prompt_injection import PromptInjectionAttacks
+from .supply_chain import SupplyChainAttacks
+from .tool_exfil import ToolExfilAttacks
+from .unauthorized_action import UnauthorizedActionAttacks
 
 __all__ = [
     "Attack",
