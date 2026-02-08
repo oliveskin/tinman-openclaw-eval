@@ -4,9 +4,6 @@ on:
   # For future releases: push a tag like v0.3.3
   push:
     tags: ["v*"]
-  # For the already-existing tag v0.3.2: create a GitHub Release for that tag
-  release:
-    types: [published]
   # Manual publish (useful if you add the workflow after tagging)
   workflow_dispatch:
 
@@ -34,14 +31,5 @@ jobs:
         run: |
           python -m build
 
-      # If you use an API token instead of trusted publishing, set PYPI_API_TOKEN in repo secrets.
-      - name: Publish to PyPI (API token)
-        if: ${{ secrets.PYPI_API_TOKEN != '' }}
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-
       - name: Publish to PyPI (trusted publishing)
-        if: ${{ secrets.PYPI_API_TOKEN == '' }}
         uses: pypa/gh-action-pypi-publish@release/v1
-
